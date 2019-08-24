@@ -32,12 +32,13 @@ const char* gpszProgramName = "PressureTest";
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 WNDPROC glfw_wndproc;
+GLFWwindow* window;
+
+std::vector<Vector> line = {};
 
 int main(void)
 {
 	printf("Hello World! \n");
-
-	GLFWwindow* window;
 
 	/* Initialize the library */
 	if (!glfwInit())
@@ -149,7 +150,7 @@ int main(void)
 
 )SHADER";
 
-	std::vector<Vector> line = { {100, 100}, { 100,600 }, { 300,500 }, { 600,100 } };
+	//std::vector<Vector> line = { {100, 100}, { 100,600 }, { 300,500 }, { 600,100 } };
 	std::vector<Vector> tris = line_to_tris(line, 1);
 	std::vector<Vertex> vertices = {};
 	std::vector<int> indices = {};
@@ -158,7 +159,7 @@ int main(void)
 		vertices.push_back(Vertex{ {tri.x, tri.y}, {0,0} });
 	}
 
-	Mesh mesh = load_mesh(&vertices[0], vertices.size());
+	Mesh mesh = load_mesh(0, 0);
 	unsigned int shader = load_shader(vertex, fragment);
 
 	/* Loop until the user closes the window */
@@ -176,7 +177,7 @@ int main(void)
 		glViewport(0, 0, w, h);
 
 		Matrix matrix = Matrix::Identity();
-		matrix.scale(Vector{ (float)w,(float)h } / 2.0);
+		matrix.scale(Vector{ (float)w,-(float)h } / 2.0);
 		matrix.translate(Vector{ (float)w , (float)h } / 2.0);
 		matrix.invert();
 
@@ -186,36 +187,38 @@ int main(void)
 		glUseProgram(shader);
 		glUniformMatrix3fv(glGetUniformLocation(shader, "matrix"), 1, false, gpu_matrix);
 		glUniform4f(glGetUniformLocation(shader, "color"), 1, 0.5, 1, 1);
-
-#if 1
+		/*
 		std::vector<Vector> line = {};// { {100, 100}, { 100,600 }, { 300,500 }, { 600,100 } };
 		for (int i = 0; i < 10; i++)
 		{
 			line.push_back({ (float)(rand() % w), (float)(rand() % h) });
 		}
-		std::vector<Vector> tris = line_to_tris(line, 3);
-		std::vector<Vertex> vertices = {};
-		std::vector<int> indices = {};
-		for (Vector tri : tris)
+		*/
+		if (line.size() > 1)
 		{
-			vertices.push_back(Vertex{ {tri.x, tri.y}, {0,0} });
+			std::vector<Vector> tris = line_to_tris(line, 3);
+			std::vector<Vertex> vertices = {};
+			std::vector<int> indices = {};
+			for (Vector tri : tris)
+			{
+				vertices.push_back(Vertex{ {tri.x, tri.y}, {0,0} });
+			}
+
+			glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
+			glBindVertexArray(mesh.VAO);
+
+			/*
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, uv));
+			*/ 
+
+			glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_DYNAMIC_DRAW);
+			//glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, vertices.size());
 		}
-#endif	
-		glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
-		glBindVertexArray(mesh.VAO);
-
-		/*
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, uv));
-		*/ 
-
-		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_DYNAMIC_DRAW);
-		//glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, vertices.size());
-
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);
 	}
@@ -293,6 +296,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		double localX = globalX - origin.x;
 		double localY = globalY - origin.y;
+
+		if (pointerPenInfo.pressure > 0.0f)
+		{
+			//glfwGetCursorPos(window, &localX, &localY);
+			//line.push_back({ (float)(int)localX, (float)(int)localY });
+			line.push_back({ (float)localX, (float)localY });
+		}
 
 		printf("X: %f | Y: %f \n", localX, localY);
 		/*
