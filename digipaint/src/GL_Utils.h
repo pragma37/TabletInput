@@ -101,32 +101,39 @@ struct Vertex
 	float uv[2];
 };
 
-unsigned int load_mesh(Vertex* vertices, int vertex_count)//, unsigned int* indices, int index_count)
+struct Mesh
 {
+	unsigned int VBO;
 	unsigned int VAO;
-	unsigned int VBO, EBO;
-	glGenVertexArrays(1, &VAO);
+};
+
+Mesh load_mesh(Vertex* vertices, int vertex_count)//, unsigned int* indices, int index_count)
+{
+	unsigned int VBO;// , EBO;
 	glGenBuffers(1, &VBO);
+	unsigned int VAO;
+	glGenVertexArrays(1, &VAO);
 	//glGenBuffers(1, &EBO);
 
-	glBindVertexArray(VAO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(Vertex), vertices, GL_STATIC_DRAW);
-
-	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(unsigned int), indices, GL_STATIC_DRAW);
+	glBindVertexArray(VAO);
 
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, uv));
+	
+	glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(Vertex), vertices, GL_DYNAMIC_DRAW);
+	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(unsigned int), indices, GL_STATIC_DRAW);
+
 
 	glBindVertexArray(0);
 
 	//glDeleteBuffers(1, &VBO);
 	//glDeleteBuffers(1, &EBO);
 
-	return VAO;
+	return{ VBO, VAO };
 }
 
 void glDebugOutput(GLenum source,

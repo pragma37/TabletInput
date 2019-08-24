@@ -144,13 +144,13 @@ int main(void)
 
 	void main()
 	{
-		FragColor = vec4(1,1,1,1);//color;
+		FragColor = color;
 	}
 
 )SHADER";
 
 	std::vector<Vector> line = { {100, 100}, { 100,600 }, { 300,500 }, { 600,100 } };
-	std::vector<Vector> tris = line_to_tris(line, 3);
+	std::vector<Vector> tris = line_to_tris(line, 1);
 	std::vector<Vertex> vertices = {};
 	std::vector<int> indices = {};
 	for (Vector tri : tris)
@@ -158,7 +158,7 @@ int main(void)
 		vertices.push_back(Vertex{ {tri.x, tri.y}, {0,0} });
 	}
 
-	unsigned int mesh = load_mesh(&vertices[0], vertices.size());
+	Mesh mesh = load_mesh(&vertices[0], vertices.size());
 	unsigned int shader = load_shader(vertex, fragment);
 
 	/* Loop until the user closes the window */
@@ -185,9 +185,34 @@ int main(void)
 
 		glUseProgram(shader);
 		glUniformMatrix3fv(glGetUniformLocation(shader, "matrix"), 1, false, gpu_matrix);
-		//glUniform4f(glGetUniformLocation(shader, "color"), 1, 1, 1, 1);
-		
-		glBindVertexArray(mesh);
+		glUniform4f(glGetUniformLocation(shader, "color"), 1, 0.5, 1, 1);
+
+#if 1
+		std::vector<Vector> line = {};// { {100, 100}, { 100,600 }, { 300,500 }, { 600,100 } };
+		for (int i = 0; i < 10; i++)
+		{
+			line.push_back({ (float)(rand() % w), (float)(rand() % h) });
+		}
+		std::vector<Vector> tris = line_to_tris(line, 3);
+		std::vector<Vertex> vertices = {};
+		std::vector<int> indices = {};
+		for (Vector tri : tris)
+		{
+			vertices.push_back(Vertex{ {tri.x, tri.y}, {0,0} });
+		}
+#endif	
+		glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
+		glBindVertexArray(mesh.VAO);
+
+		/*
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, uv));
+		*/ 
+
+		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_DYNAMIC_DRAW);
+		//glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, vertices.size());
 
