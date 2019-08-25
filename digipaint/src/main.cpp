@@ -168,11 +168,19 @@ int main(void)
 	Mesh mesh = {};
 	TriangulatedLine tris = {};
 
+	Mesh mesh_line = {};
+	TriangulatedLine tris_line = {};
+
+	Mesh mesh_debug = {};
+	TriangulatedLine tris_debug = {};
+
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
 		/* Poll for and process events */
 		glfwPollEvents();
+
+		printf("FRAME\n");
 		
 		/* Render here */
 		glClearColor(0.1, 0.1, 0.1, 1.0);
@@ -202,14 +210,42 @@ int main(void)
 		*/
 		if (line.size() > 1)
 		{
-			line_to_tris(line, 3, tris);
+			tris.vertices.clear();
+			tris.indices.clear();
+
+			line_to_tris(line, 30, tris);
 			load_mesh(mesh, tris.vertices, tris.indices);
 			
 			glBindVertexArray(mesh.VAO);
 
+			glUniform4f(glGetUniformLocation(shader, "color"), 1, 0.5, 1, 1);
+
 			glDrawElements(GL_TRIANGLES, tris.indices.size(), GL_UNSIGNED_INT, 0);
 
-			//glDrawArrays(GL_TRIANGLE_STRIP, 0, vertices.size());
+			tris_line.vertices.clear();
+			tris_line.indices.clear();
+
+			line_to_tris(line, 1, tris_line);
+			load_mesh(mesh_line, tris_line.vertices, tris_line.indices);
+
+			glBindVertexArray(mesh_line.VAO);
+
+			glUniform4f(glGetUniformLocation(shader, "color"), 0, 0, 0, 1);
+
+			glDrawElements(GL_TRIANGLES, tris_line.indices.size(), GL_UNSIGNED_INT, 0);
+
+			tris_debug.vertices.clear();
+			tris_debug.indices.clear();
+
+			line_to_debug_tris(line, 20, tris_debug);
+			load_mesh(mesh_debug, tris_debug.vertices, tris_debug.indices);
+
+			glBindVertexArray(mesh_debug.VAO);
+
+			glUniform4f(glGetUniformLocation(shader, "color"), 0, 0, 0, 1);
+
+			glDrawElements(GL_TRIANGLES, tris_debug.indices.size(), GL_UNSIGNED_INT, 0);
+
 		}
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);
@@ -257,7 +293,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			int x = LOWORD(lParam);
 			int y = HIWORD(lParam);
-			line.push_back({ (float)x, (float)y });
+			//line.push_back({ (float)x, (float)y });
 		}
 		break;
 	}
