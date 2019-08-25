@@ -206,29 +206,44 @@ bool line_intersection(Vector a1, Vector a2, Vector b1, Vector b2, Vector& inter
 	}
 }
 
-std::vector<Vector> line_to_tris(std::vector<Vector> line, float width)
+struct TriangulatedLine
 {
-	std::vector<Vector> result = {};
-	result.reserve(line.size() * 2);
+	std::vector<Vertex> vertices;
+	std::vector<unsigned int> indices;
+};
 
-	Vector direction;
+void line_to_tris(std::vector<Vector> line, float width, TriangulatedLine& result )
+{
+	result.vertices.reserve(result.vertices.size() + line.size() * 2);
+	result.indices.reserve(result.indices.size() + line.size() * 2 * 6);
+
 	width /= 2.0;
+	Vector direction;
+	float length = 0;
 	
 	for (int i = 0; i < line.size(); i++)
 	{
+		Vector left;
+		Vector right;
+
+		if (i != 0)
+		{
+			length += (line[i] - line[i - 1]).length();
+		}
+		
 		if (i == 0) //first element
 		{
 			direction = (line[i + 1] - line[i]).normalized();
 			Vector side_direction = direction.rotated(-90 * DEG2RAD);
-			result.push_back(line[i] + side_direction * width);
-			result.push_back(line[i] - side_direction * width);
+			left = line[i] + side_direction * width;
+			right = line[i] - side_direction * width;
 		}
 		else if (i == line.size() - 1) //last element
 		{
 			direction = (line[i] - line[i - 1]).normalized();
 			Vector side_direction = direction.rotated(-90 * DEG2RAD);
-			result.push_back(line[i] + side_direction * width);
-			result.push_back(line[i] - side_direction * width);
+			left = line[i] + side_direction * width;
+			right = line[i] - side_direction * width;
 		}
 		else
 		{
@@ -244,23 +259,26 @@ std::vector<Vector> line_to_tris(std::vector<Vector> line, float width)
 			Vector next_left = line[i + 1] + current_side_direction * width;
 			Vector next_right = line[i + 1] - current_side_direction * width;
 
-			Vector left;
 			bool intersect = line_intersection(previous_left, previous_left + previous_direction, next_left, next_left - current_direction, left);
-			Vector right;
 			intersect = intersect && line_intersection(previous_right, previous_right + previous_direction, next_right, next_right - current_direction, right);
 
-			if (intersect)
+			if (!intersect) //they are parallel
 			{
-				result.push_back(left);
-				result.push_back(right);
-			}
-			else //they are parallel
-			{
-				result.push_back(line[i] + current_side_direction * width);
-				result.push_back(line[i] - current_side_direction * width);
+				left = line[i] + current_side_direction * width;
+				right = line[i] - current_side_direction * width;
 			}
 		}
-	}
 
-	return result;
+		Vertex vertex_left = { {left.x, left.y }, {length, 0} };
+		Vertex vertex_right = { {right.x, right.y }, {length, 1} };
+		result.vertices.insert(result.vertices.end(), { vertex_left, vertex_right });
+
+		if (i != 0)
+		{
+			//first vertex index of the new quad
+			unsigned int v = result.vertices.size() - 4;
+			result.indices.insert(result.indices.end(), { v, v+2, v+3, v, v+3, v+1 });
+		}
+
+	}
 }

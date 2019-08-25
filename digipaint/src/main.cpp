@@ -150,6 +150,7 @@ int main(void)
 
 )SHADER";
 
+	/*
 	//std::vector<Vector> line = { {100, 100}, { 100,600 }, { 300,500 }, { 600,100 } };
 	std::vector<Vector> tris = line_to_tris(line, 1);
 	std::vector<Vertex> vertices = {};
@@ -160,7 +161,12 @@ int main(void)
 	}
 
 	Mesh mesh = load_mesh(0, 0);
+	*/
+
 	unsigned int shader = load_shader(vertex, fragment);
+	
+	Mesh mesh = {};
+	TriangulatedLine tris = {};
 
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
@@ -196,28 +202,14 @@ int main(void)
 		*/
 		if (line.size() > 1)
 		{
-			std::vector<Vector> tris = line_to_tris(line, 3);
-			std::vector<Vertex> vertices = {};
-			std::vector<int> indices = {};
-			for (Vector tri : tris)
-			{
-				vertices.push_back(Vertex{ {tri.x, tri.y}, {0,0} });
-			}
-
-			glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
+			line_to_tris(line, 3, tris);
+			load_mesh(mesh, tris.vertices, tris.indices);
+			
 			glBindVertexArray(mesh.VAO);
 
-			/*
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
-			glEnableVertexAttribArray(1);
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, uv));
-			*/ 
+			glDrawElements(GL_TRIANGLES, tris.indices.size(), GL_UNSIGNED_INT, 0);
 
-			glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_DYNAMIC_DRAW);
-			//glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, vertices.size());
+			//glDrawArrays(GL_TRIANGLE_STRIP, 0, vertices.size());
 		}
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);
@@ -240,6 +232,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static RECT display = {};
 	static int id = 0;
 
+	static bool mouse = false;
+
 	auto print_rect = [](RECT rect)
 	{
 		printf("L: %d | R: %d | B: %d | T: %d \n", rect.left, rect.right, rect.bottom, rect.top);
@@ -247,6 +241,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	
 	switch (message)
 	{
+	case WM_LBUTTONDOWN:
+	{
+		mouse = true;
+		break;
+	}
+	case WM_LBUTTONUP:
+	{
+		mouse = false;
+		break;
+	}
+	case WM_MOUSEMOVE:
+	{
+		if (mouse)
+		{
+			int x = LOWORD(lParam);
+			int y = HIWORD(lParam);
+			line.push_back({ (float)x, (float)y });
+		}
+		break;
+	}
 	case WM_POINTERDOWN:
 		break;
 	case WM_POINTERUPDATE:
@@ -305,86 +319,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 
 		printf("X: %f | Y: %f \n", localX, localY);
-		/*
-		printf("POINTER UPDATE \n");
-		//if (IS_POINTER_PRIMARY_WPARAM(wParam)) break;
-
-		if (GET_POINTERID_WPARAM(wParam) != id)
-		{
-			id = GET_POINTERID_WPARAM(wParam);
-
-			POINTER_PEN_INFO info = {};
-			GetPointerPenInfo(id, &info);
-
-			//printf("DEVICE X: %d || Y: %d \n", device.right - device.left, device.top - device.bottom);
-		}
-
-		POINTER_PEN_INFO info = {};
-		GetPointerPenInfo(id, &info);
-		GetPointerDeviceRects(info.pointerInfo.sourceDevice, &device, &display);
-
-
-		POINTER_DEVICE_INFO device_info = {};
-		bool success = GetPointerDevice(info.pointerInfo.sourceDevice, &device_info);
-		if (success)
-		{
-			printf("SUCCESS \n");
-		}
-		else
-		{
-			printf("FAILED \n");
-		}
-
-		printf("%d \n", device_info.monitor);
-		POINTER_INFO _info = {};
-		GetPointerInfo(id, &_info);
-
-		printf("%ls \n", device_info.productString);
-
-		if (memcmp(&_info, &info.pointerInfo, sizeof(POINTER_INFO)))
-		{
-			printf("WTF \n");
-		}
-		else
-		{
-			printf("EQUAL \n");
-		}
-
-		MONITORINFO monitor_info = {};
-		monitor_info.cbSize = sizeof(MONITORINFO);
-		MONITORINFO* monitor_info_ptr = &monitor_info;
-		success = GetMonitorInfo(device_info.monitor, monitor_info_ptr);
-		if (success)
-		{
-			printf("SUCCESS \n");
-		}
-		else
-		{
-			printf("FAILED \n");
-		}
-
-		printf("MONITOR ");
-		print_rect(monitor_info_ptr->rcMonitor);
-
-		printf("WORK ");
-		print_rect(monitor_info_ptr->rcWork);
-
-		printf("DEVICE ");
-		print_rect(device);
-
-		printf("DISPLAY ");
-		print_rect(display);
-
-		float x = ((float)info.pointerInfo.ptHimetricLocationRaw.x / (float)(device.right - device.left)) * (float)(display.right - display.left);
-		float y = ((float)info.pointerInfo.ptHimetricLocationRaw.y / (float)(device.top - device.bottom)) * (float)(display.top - display.bottom);
-		float z = (float)info.pressure / 1024.0;
-		
-		//printf("DEVICE X: %d || Y: %d \n", device.right - device.left, device.top - device.bottom);
-		//printf("DISPLAY X: %d || Y: %d \n", display.right - display.left, display.top - display.bottom);
-
-		printf("X: %d || Y: %d || Z:%d \n", info.pointerInfo.ptHimetricLocationRaw.x, info.pointerInfo.ptHimetricLocationRaw.y, info.pressure);
-		//printf("X: %f || Y: %f || Z:%f \n", x, y, z);
-		*/
 
 		break;
 	}

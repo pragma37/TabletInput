@@ -10,6 +10,8 @@
 #include <sstream>
 #include <iostream>
 
+#include <vector>
+
 unsigned int load_shader(const char* vertex, const char* fragment)
 {
 	auto compile_shader = [&](const char* source, GLenum shader_type)
@@ -105,35 +107,31 @@ struct Mesh
 {
 	unsigned int VBO;
 	unsigned int VAO;
+	unsigned int EBO;
 };
 
-Mesh load_mesh(Vertex* vertices, int vertex_count)//, unsigned int* indices, int index_count)
+void load_mesh(Mesh& mesh, std::vector<Vertex>& vertices, std::vector<unsigned int>& indices)
 {
-	unsigned int VBO;// , EBO;
-	glGenBuffers(1, &VBO);
-	unsigned int VAO;
-	glGenVertexArrays(1, &VAO);
-	//glGenBuffers(1, &EBO);
+	if (mesh.VBO == 0) //mesh hasn't been loaded before
+	{
+		glGenBuffers(1, &mesh.VBO);
+		glGenVertexArrays(1, &mesh.VAO);
+		glGenBuffers(1, &mesh.EBO);
+	}
 
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBindVertexArray(VAO);
+	glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
+	glBindVertexArray(mesh.VAO);
 
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, uv));
 	
-	glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(Vertex), vertices, GL_DYNAMIC_DRAW);
-	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(unsigned int), indices, GL_STATIC_DRAW);
-
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_DYNAMIC_DRAW);
 
 	glBindVertexArray(0);
-
-	//glDeleteBuffers(1, &VBO);
-	//glDeleteBuffers(1, &EBO);
-
-	return{ VBO, VAO };
 }
 
 void glDebugOutput(GLenum source,
