@@ -36,6 +36,9 @@ GLFWwindow* window;
 
 std::vector<Vector> line = {};
 
+static float zoom = 1;
+static Vector pan = { 0 };
+
 int main(void)
 {
 	printf("Hello World! \n");
@@ -145,6 +148,7 @@ int main(void)
 
 	void main()
 	{
+		FragColor = color * (mod(uv.x, 100.0)/100.0);
 		FragColor = color;
 	}
 
@@ -180,7 +184,7 @@ int main(void)
 		/* Poll for and process events */
 		glfwPollEvents();
 
-		printf("FRAME\n");
+		//printf("FRAME\n");
 		
 		/* Render here */
 		glClearColor(0.1, 0.1, 0.1, 1.0);
@@ -190,10 +194,20 @@ int main(void)
 		glfwGetWindowSize(window, &w, &h);
 		glViewport(0, 0, w, h);
 
+		Vector half_res = Vector{ (float)w ,(float)h } / 2.0;
+		Matrix world = Matrix::Identity();
+		world.translate(-half_res);
+		world.translate(pan);
+		world.scale({ zoom,zoom });
+		world.translate(half_res);
+		//printf("PAN X: %f Y: %f ZOOM: %f\n ", pan.x, pan.y, zoom);
+
 		Matrix matrix = Matrix::Identity();
 		matrix.scale(Vector{ (float)w,-(float)h } / 2.0);
 		matrix.translate(Vector{ (float)w , (float)h } / 2.0);
 		matrix.invert();
+
+		matrix = matrix * world;
 
 		float gpu_matrix[9];
 		matrix.to_float9(gpu_matrix);
@@ -244,7 +258,7 @@ int main(void)
 
 			glUniform4f(glGetUniformLocation(shader, "color"), 0, 0, 0, 1);
 
-			glDrawElements(GL_TRIANGLES, tris_debug.indices.size(), GL_UNSIGNED_INT, 0);
+			//glDrawElements(GL_TRIANGLES, tris_debug.indices.size(), GL_UNSIGNED_INT, 0);
 
 		}
 		/* Swap front and back buffers */
@@ -270,6 +284,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	static bool mouse = false;
 
+	static int x = 0;
+	static int y = 0;
+
 	auto print_rect = [](RECT rect)
 	{
 		printf("L: %d | R: %d | B: %d | T: %d \n", rect.left, rect.right, rect.bottom, rect.top);
@@ -289,11 +306,41 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_MOUSEMOVE:
 	{
+		int _x = LOWORD(lParam);
+		int _y = HIWORD(lParam);
 		if (mouse)
 		{
-			int x = LOWORD(lParam);
-			int y = HIWORD(lParam);
-			//line.push_back({ (float)x, (float)y });
+			if (wParam & MK_SHIFT)
+			{
+				pan.x += (float)(_x - x) / zoom;
+				pan.y += (float)(_y - y) / zoom;
+			}
+			else
+			{
+				line.push_back({ (float)x, (float)y });
+			}
+		}
+		x = _x;
+		y = _y;
+		break;
+	}
+	case WM_MOUSEWHEEL:
+	{
+		int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+		float scalar_offset = 0.005;
+		if (delta > 0)
+		{
+			for (int i = 0; i < delta; i++)
+			{
+				zoom *= 1.0 + scalar_offset;
+			}
+		}
+		else
+		{
+			for (int i = 0; i > delta; i--)
+			{
+				zoom *= 1.0 - scalar_offset;
+			}
 		}
 		break;
 	}
@@ -354,7 +401,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			line.push_back({ (float)localX, (float)localY });
 		}
 
-		printf("X: %f | Y: %f \n", localX, localY);
+		//printf("X: %f | Y: %f \n", localX, localY);
 
 		break;
 	}
