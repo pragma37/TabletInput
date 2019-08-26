@@ -1,3 +1,5 @@
+#pragma once
+
 #include "GL_Utils.h"
 
 #include <GLFW/glfw3native.h>
@@ -128,6 +130,56 @@ int main(void)
 	glDebugMessageCallback((GLDEBUGPROC)glDebugOutput, nullptr);
 #endif
 
+	const char* geometry = R"SHADER(
+	#version 410 core
+	layout (lines) in;
+	layout (triangle_strip, max_vertices = 8) out;
+
+	out vec2 uv;
+	
+	uniform mat3 matrix;
+	uniform float width = 5.0;
+
+	void main() {
+		float radius = width / 2.0;
+		vec2 a = gl_in[0].gl_Position.xy;
+		vec2 b = gl_in[1].gl_Position.xy;
+		vec2 direction = normalize(b - a);
+		vec2 tangent = vec2(-direction.y, direction.x);
+		vec2 start = a - (direction * radius);
+		vec2 end = b + (direction * radius);
+		vec2 left = tangent * radius;
+		vec2 right = -tangent * radius;
+
+		gl_Position = vec4(matrix * vec3(start + left, 1), 1);
+		uv = vec2(0,1);
+		EmitVertex();
+		gl_Position = vec4(matrix * vec3(start + right, 1), 1);
+		uv = vec2(0,0);
+		EmitVertex();
+		gl_Position = vec4(matrix * vec3(a + left, 1), 1);
+		uv = vec2(0.5,1);
+		EmitVertex();
+		gl_Position = vec4(matrix * vec3(a + right, 1), 1);
+		uv = vec2(0.5,0);
+		EmitVertex();
+		gl_Position = vec4(matrix * vec3(b + left, 1), 1);
+		uv = vec2(0.5,1);
+		EmitVertex();
+		gl_Position = vec4(matrix * vec3(b + right, 1), 1);
+		uv = vec2(0.5,0);
+		EmitVertex();
+		gl_Position = vec4(matrix * vec3(end + left, 1), 1);
+		uv = vec2(1,1);
+		EmitVertex();
+		gl_Position = vec4(matrix * vec3(end + right, 1), 1);
+		uv = vec2(1,0);
+		EmitVertex();
+
+		EndPrimitive();
+	} 
+)SHADER";
+
 	const char* vertex = R"SHADER(
 		
 	#version 410 core
@@ -138,14 +190,14 @@ int main(void)
 	out vec2 world_position;
 	out vec2 uv;
 
-	uniform mat3 matrix;
 	//uniform mat4 model;
 
 	void main()
 	{
 		position = _position;
 		uv = _uv;
-		gl_Position = vec4(matrix * vec3(_position, 1), 1);
+		gl_Position = vec4(_position, 0, 1);
+		//gl_Position = vec4(matrix * vec3(_position, 1), 1);
 		//gl_Position = vec4(_position + _uv, 1, 1);
 	}
 
@@ -163,7 +215,10 @@ int main(void)
 	void main()
 	{
 		FragColor = color * (mod(uv.x, 100.0)/100.0);
+		FragColor = vec4(uv,0,1);
+		float distance = 1.0 - length(uv - vec2(0.5,0.5)) * 2.0;
 		FragColor = color;
+		FragColor.a *= distance;
 	}
 
 )SHADER";
@@ -181,7 +236,8 @@ int main(void)
 	Mesh mesh = load_mesh(0, 0);
 	*/
 
-	unsigned int shader = load_shader(vertex, fragment);
+	//unsigned int shader = load_shader(vertex, fragment);
+	unsigned int line_shader = load_shader(vertex, fragment, geometry);
 	
 	Mesh mesh = {};
 	TriangulatedLine tris = {};
@@ -192,6 +248,8 @@ int main(void)
 	Mesh mesh_debug = {};
 	TriangulatedLine tris_debug = {};
 
+	LineMesh line_mesh = {};
+
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
@@ -201,9 +259,12 @@ int main(void)
 		//printf("FRAME\n");
 		
 		/* Render here */
-		glClearColor(0.1, 0.1, 0.1, 1.0);
+		glClearColor(0.1, 0.1, 0.1, 0.0);
 		glClear(GL_COLOR_BUFFER_BIT);
-		
+
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 		int w, h;
 		glfwGetWindowSize(window, &w, &h);
 		glViewport(0, 0, w, h);
@@ -221,6 +282,20 @@ int main(void)
 		float gpu_matrix[9];
 		matrix.to_float9(gpu_matrix);
 
+
+		glUseProgram(line_shader);
+		glUniform1f(glGetUniformLocation(line_shader, "width"), 30.0);
+		glUniformMatrix3fv(glGetUniformLocation(line_shader, "matrix"), 1, false, gpu_matrix);
+		glUniform4f(glGetUniformLocation(line_shader, "color"), 1, 0.5, 1, 1);
+
+		if (line.size() > 1)
+		{
+			load_line(line_mesh, line);
+			glBindVertexArray(line_mesh.VAO);
+			glDrawArrays(GL_LINE_STRIP, 0, line_mesh.length);
+		}
+
+#if 0
 		glUseProgram(shader);
 		glUniformMatrix3fv(glGetUniformLocation(shader, "matrix"), 1, false, gpu_matrix);
 		glUniform4f(glGetUniformLocation(shader, "color"), 1, 0.5, 1, 1);
@@ -268,8 +343,8 @@ int main(void)
 			glUniform4f(glGetUniformLocation(shader, "color"), 0, 0, 0, 1);
 
 			glDrawElements(GL_TRIANGLES, tris_debug.indices.size(), GL_UNSIGNED_INT, 0);
-
 		}
+#endif
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);
 	}
