@@ -39,6 +39,20 @@ std::vector<Vector> line = {};
 static float zoom = 1;
 static Vector pan = { 0 };
 
+Matrix world_to_camera_matrix()
+{
+	int w, h;
+	glfwGetWindowSize(window, &w, &h);
+	Vector half_res = Vector{ (float)w ,(float)h } / 2.0;
+	Matrix world = Matrix::Identity();
+	world.translate(-half_res);
+	world.translate(pan);
+	world.scale({ zoom,zoom });
+	world.translate(half_res);
+
+	return world;
+}
+
 int main(void)
 {
 	printf("Hello World! \n");
@@ -194,12 +208,7 @@ int main(void)
 		glfwGetWindowSize(window, &w, &h);
 		glViewport(0, 0, w, h);
 
-		Vector half_res = Vector{ (float)w ,(float)h } / 2.0;
-		Matrix world = Matrix::Identity();
-		world.translate(-half_res);
-		world.translate(pan);
-		world.scale({ zoom,zoom });
-		world.translate(half_res);
+		Matrix world = world_to_camera_matrix();
 		//printf("PAN X: %f Y: %f ZOOM: %f\n ", pan.x, pan.y, zoom);
 
 		Matrix matrix = Matrix::Identity();
@@ -251,14 +260,14 @@ int main(void)
 			tris_debug.vertices.clear();
 			tris_debug.indices.clear();
 
-			line_to_debug_tris(line, 20, tris_debug);
+			line_to_debug_tris(line, 5, tris_debug);
 			load_mesh(mesh_debug, tris_debug.vertices, tris_debug.indices);
 
 			glBindVertexArray(mesh_debug.VAO);
 
 			glUniform4f(glGetUniformLocation(shader, "color"), 0, 0, 0, 1);
 
-			//glDrawElements(GL_TRIANGLES, tris_debug.indices.size(), GL_UNSIGNED_INT, 0);
+			glDrawElements(GL_TRIANGLES, tris_debug.indices.size(), GL_UNSIGNED_INT, 0);
 
 		}
 		/* Swap front and back buffers */
@@ -317,7 +326,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			else
 			{
-				line.push_back({ (float)x, (float)y });
+				Matrix world = world_to_camera_matrix();
+				world.invert();
+
+				Vector position = Vector{ (float)_x, (float)_y };
+				Vector position_WS = world * position;
+				line.push_back(position_WS);
 			}
 		}
 		x = _x;
@@ -396,9 +410,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		if (pointerPenInfo.pressure > 0.0f)
 		{
-			//glfwGetCursorPos(window, &localX, &localY);
-			//line.push_back({ (float)(int)localX, (float)(int)localY });
-			line.push_back({ (float)localX, (float)localY });
+			Matrix world = world_to_camera_matrix();
+			world.invert();
+
+			Vector position = Vector{ (float)localX, (float)localY };
+			Vector position_WS = world * position;
+			line.push_back(position_WS);
 		}
 
 		//printf("X: %f | Y: %f \n", localX, localY);
