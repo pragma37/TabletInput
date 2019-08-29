@@ -1,18 +1,12 @@
 #pragma once
 
 #include "GL_Utils.h"
-
 #include <GLFW/glfw3native.h>
-
 #include "math.h"
 
-/*
-#define EASYTAB_IMPLEMENTATION
-#include "easytab.h"
-*/
-//*
-#define W_INK
-//#define WINTAB
+
+//#define W_INK
+#define WINTAB
 
 #ifdef  WINTAB
 	#include "WINTAB/WINTAB.H"
@@ -25,6 +19,8 @@
 	HCTX hCtx = NULL;
 	LOGCONTEXT glogContext = { 0 };
 	HCTX static NEAR TabletInit(HWND hWnd);
+
+	Vector sub_pixel_resolution = { 1,1 };
 #endif //  WINTAB
 
 const char* gpszProgramName = "PressureTest";
@@ -82,6 +78,9 @@ int main(void)
 
 	/* Make the window's context current */
 	glfwMakeContextCurrent(window);
+	//Disables vsync
+	//MUCH BETTER PEN REPORT RATE || VERY SMOOTH LINES
+	//glfwSwapInterval(0);
 
 	HWND handle = glfwGetWin32Window(window);
 
@@ -217,8 +216,9 @@ int main(void)
 		FragColor = color * (mod(uv.x, 100.0)/100.0);
 		FragColor = vec4(uv,0,1);
 		float distance = 1.0 - length(uv - vec2(0.5,0.5)) * 2.0;
-		FragColor = color;
-		FragColor.a *= distance;
+		distance = min(1.0, distance * 5.0);
+		FragColor = color * distance;
+		//FragColor.a *= distance;
 	}
 
 )SHADER";
@@ -250,22 +250,34 @@ int main(void)
 
 	LineMesh line_mesh = {};
 
+	int w, h;
+	glfwGetWindowSize(window, &w, &h);
+
+	unsigned int render_texture = load_texture(nullptr, w, h, 4);
+	unsigned int rbo = load_render_target(render_texture, w, h);
+	//glBindFramebuffer(GL_FRAMEBUFFER, rbo);
+	//glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
 		/* Poll for and process events */
 		glfwPollEvents();
 
-		//printf("FRAME\n");
+		printf("FRAME\n");
 		
 		/* Render here */
-		glClearColor(0.1, 0.1, 0.1, 0.0);
+		glClearColor(0.2, 0.2, 0.2, 0.0);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glBlendEquation(GL_MAX);
+		//glBlendFunc(GL_SRC_COLOR, GL_DST_COLOR);
+		//glBlendEquation(GL_MAX);
+		//glBlendFuncSeparate(GL_DST_ALPHA, GL_ZERO, GL_DST_ALPHA, GL_ZERO);
 
-		int w, h;
+		//int w, h;
 		glfwGetWindowSize(window, &w, &h);
 		glViewport(0, 0, w, h);
 
@@ -284,7 +296,7 @@ int main(void)
 
 
 		glUseProgram(line_shader);
-		glUniform1f(glGetUniformLocation(line_shader, "width"), 30.0);
+		glUniform1f(glGetUniformLocation(line_shader, "width"), 10.0);
 		glUniformMatrix3fv(glGetUniformLocation(line_shader, "matrix"), 1, false, gpu_matrix);
 		glUniform4f(glGetUniformLocation(line_shader, "color"), 1, 0.5, 1, 1);
 
@@ -358,6 +370,14 @@ int main(void)
 	return 0;
 }
 
+Vector virtual_screen_to_local_coordinates(Vector virtual_screen_position)
+{
+	POINT origin{ 0, 0 };
+	MapWindowPoints(glfwGetWin32Window(window), NULL, &origin, 1);
+
+	return virtual_screen_position - Vector{ (float)origin.x, (float)origin.y };
+}
+
 #ifdef W_INK
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -406,7 +426,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				Vector position = Vector{ (float)_x, (float)_y };
 				Vector position_WS = world * position;
-				line.push_back(position_WS);
+				//line.push_back(position_WS);
 			}
 		}
 		x = _x;
@@ -565,14 +585,19 @@ HCTX static NEAR TabletInit(HWND hWnd)
 	glogContext.lcInExtX = TabletX.axMax;
 	glogContext.lcInExtY = TabletY.axMax;
 
+	sub_pixel_resolution = {
+		(float)TabletX.axMax / GetSystemMetrics(SM_CXVIRTUALSCREEN),
+		(float)TabletY.axMax / GetSystemMetrics(SM_CYVIRTUALSCREEN)
+	};
+
 	// Guarantee the output coordinate space to be in screen coordinates.  
-	glogContext.lcOutOrgX = GetSystemMetrics(SM_XVIRTUALSCREEN);
-	glogContext.lcOutOrgY = GetSystemMetrics(SM_YVIRTUALSCREEN);
-	glogContext.lcOutExtX = GetSystemMetrics(SM_CXVIRTUALSCREEN); //SM_CXSCREEN );
+	glogContext.lcOutOrgX = GetSystemMetrics(SM_XVIRTUALSCREEN) * sub_pixel_resolution.x;
+	glogContext.lcOutOrgY = GetSystemMetrics(SM_YVIRTUALSCREEN) * sub_pixel_resolution.y;
+	glogContext.lcOutExtX = GetSystemMetrics(SM_CXVIRTUALSCREEN) * sub_pixel_resolution.x;
 
 	// In Wintab, the tablet origin is lower left.  Move origin to upper left
 	// so that it coincides with screen origin.
-	glogContext.lcOutExtY = -GetSystemMetrics(SM_CYVIRTUALSCREEN);	//SM_CYSCREEN );
+	glogContext.lcOutExtY = -GetSystemMetrics(SM_CYVIRTUALSCREEN) * sub_pixel_resolution.y;
 
 	// Leave the system origin and extents as received:
 	// lcSysOrgX, lcSysOrgY, lcSysExtX, lcSysExtY
@@ -611,15 +636,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			ptNew.x = pkt.pkX;
 			ptNew.y = pkt.pkY;
 
-			printf("X : %d || Y : %d || PRESSURE : %d \n", pkt.pkX, pkt.pkY, pkt.pkNormalPressure);
+			Vector cursor = Vector{ (float)pkt.pkX , (float)pkt.pkY } / sub_pixel_resolution;
+			cursor = virtual_screen_to_local_coordinates(cursor);
+
+			printf("X : %f || Y : %f || PRESSURE : %d \n", cursor.x, cursor.y, pkt.pkNormalPressure);
 
 			prsNew = pkt.pkNormalPressure;
 
-			if (ptNew.x != ptOld.x ||
-				ptNew.y != ptOld.y ||
-				prsNew != prsOld)
+			if (prsNew > 0.0f)
 			{
-				InvalidateRect(hWnd, NULL, TRUE);
+				Matrix world = world_to_camera_matrix();
+				world.invert();
+				Vector position_WS = world * cursor;
+				line.push_back(position_WS);
 			}
 		}
 		break;
